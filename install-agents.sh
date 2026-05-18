@@ -15,9 +15,9 @@ sudo dpkg-deb -x /tmp/wazuh-agent.deb /
 
 sudo dpkg --force-all -i /tmp/wazuh-agent.deb 2>/dev/null || true
 
-sudo sed -i "s/<address>127.0.0.1<\/address>/<address>$SERVER_IP<\/address>/" /var/ossec/etc/ossec.conf
+sudo sed -i "s/<address>MANAGER_IP<\/address>/<address>$SERVER_IP<\/address>/" /var/ossec/etc/ossec.conf
 
-sudo /var/ossec/bin/agent-auth -m "10.10.12.100" -A "$(hostname)"
+sudo /var/ossec/bin/agent-auth -m "10.10.12.100" -m "$(hostname)"
 
 sudo sed -i "s/^Server=127.0.0.1/Server=$SERVER_IP/" /etc/zabbix/zabbix_agentd.conf
 sudo sed -i "s/^ServerActive=127.0.0.1/ServerActive=$SERVER_IP/" /etc/zabbix/zabbix_agentd.conf
