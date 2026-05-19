@@ -43,27 +43,37 @@ elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ] || [ "$OS" = "rocky" ] || [ "$OS
 else
     echo "Distribución '$OS' no soportada por este script de automatización."
     exit 1
-fi # <-- AQUÍ ESTABA EL ERROR, YA QUEDÓ CERRADO EL BLOQUE DE INSTALACIÓN
+fi
 
 # 3. DESCARGAR E INSTALAR EL AGENTE DE WAZUH
 if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
-    # Usamos la variable WAZUH_VER de forma segura
     URL_WAZUH="https://packages.wazuh.com/4.x/apt/pool/main/w/wazuh-agent/wazuh-agent_${WAZUH_VER}_amd64.deb"
     wget -O /tmp/wazuh-agent.deb "$URL_WAZUH"
     sudo dpkg-deb -x /tmp/wazuh-agent.deb /
     sudo dpkg --force-all -i /tmp/wazuh-agent.deb 2>/dev/null || true
 else
-    # Instalación en RedHat/CentOS/Otros
     URL_WAZUH="https://packages.wazuh.com/4.x/yum/wazuh-agent-${WAZUH_VER}.x86_64.rpm"
     sudo rpm -ivh "$URL_WAZUH"
 fi
 
-# 4. CONFIGURAR AGENTE DE WAZUH
-# Reemplazo universal: busca lo que haya entre <address> y </address> y pon la IP del servidor
+# 4. CONFIGURAR AGENTE DE WAZUH (IP y Autenticación)
 sudo sed -i "s|<address>.*</address>|<address>$SERVER_IP</address>|" /var/ossec/etc/ossec.conf
-
-# Registro limpio en Wazuh apuntando a tu servidor usando variables
 sudo /var/ossec/bin/agent-auth -m "$SERVER_IP" -A "$(hostname)"
+
+# [NUEVO] INYECTAR MONITOREO DE SEGURIDAD NATIVO (Evita agentes ciegos)
+# Identificamos cuál es la ruta correcta de los logs de accesos según la distribución
+if [ -f /var/log/auth.log ]; then
+    AUTH_LOG_PATH="/var/log/auth.log"
+elif [ -f /var/log/secure ]; then
+    AUTH_LOG_PATH="/var/log/secure"
+else
+    AUTH_LOG_PATH="/var/log/messages" # Alternativa por si acaso
+fi
+
+# Inyectamos el bloque de configuración justo encima de la sección </ossec_config>
+sudo sed -i "/<\/ossec_config>/i \
+  <localfile>\n    <log_format>syslog</log_format>\n    <location>$AUTH_LOG_PATH</location>\n  </localfile>" /var/ossec/etc/ossec.conf
+
 
 # 5. CONFIGURAR AGENTE DE ZABBIX
 sudo sed -i "s/^Server=127.0.0.1/Server=$SERVER_IP/" /etc/zabbix/zabbix_agentd.conf
